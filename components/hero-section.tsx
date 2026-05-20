@@ -1,8 +1,23 @@
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
+"use client";
+
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
+import { useAuthContext } from "./auth-provider";
 
 export function HeroSection() {
+  const { user, setShowSignupModal, loading } = useAuthContext();
+
+  const handleStartCreating = () => {
+    if (loading) return;
+    
+    if (!user) {
+      // 如果未登录，显示注册/登录模态框
+      setShowSignupModal(true);
+    }
+    // 如果已登录，Link 会自动跳转到工作台
+  };
+
   return (
     <section className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16">
       {/* Background gradient effects */}
@@ -40,14 +55,23 @@ export function HeroSection() {
         {/* CTA Button */}
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <Button 
-            asChild
+            asChild={user !== null}
+            onClick={!user ? handleStartCreating : undefined}
             size="lg" 
             className="group h-12 gap-2 bg-gradient-to-r from-purple-500 to-pink-500 px-8 text-base font-medium text-white hover:from-purple-600 hover:to-pink-600"
+            disabled={loading}
           >
-            <Link href="/workbench">
-              开始免费创作
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Link>
+            {user ? (
+              <Link href="/workbench">
+                开始免费创作
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            ) : (
+              <>
+                开始免费创作
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </>
+            )}
           </Button>
           <p className="text-sm text-muted-foreground">
             无需信用卡 · 每月100张免费额度
@@ -58,5 +82,5 @@ export function HeroSection() {
       {/* Bottom gradient fade */}
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
     </section>
-  )
+  );
 }

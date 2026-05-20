@@ -105,9 +105,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 配置允许的 HTTP 方法
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+
