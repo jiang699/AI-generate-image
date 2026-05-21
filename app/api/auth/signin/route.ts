@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
 import { createSuccessResponse, createErrorResponse } from '@/lib/api';
 import { createServiceClient } from '@/lib/supabase-server';
 
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const result = signinSchema.safeParse(body);
-    
+
     if (!result.success) {
       return NextResponse.json(
         createErrorResponse('INVALID_PARAMS', 'Invalid request parameters'),
@@ -22,10 +23,12 @@ export async function POST(request: NextRequest) {
 
     const { email, password } = result.data;
 
-    const supabase = createServiceClient();
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
 
-    // 登录 Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
       email,
       password,
     });
@@ -45,16 +48,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 获取用户信息
-    const { data: user, error: userError } = await supabase
+    const supabaseAdmin = createServiceClient();
+
+    const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .select('id, email, display_name, credits, is_admin')
       .eq('id', authData.user.id)
       .single();
 
     if (userError || !user) {
-      // 如果用户记录不存在，创建一个
-      const { error: createError } = await supabase
+      const { error: createError } = await supabaseAdmin
         .from('users')
         .insert({
           id: authData.user.id,
@@ -81,7 +84,9 @@ export async function POST(request: NextRequest) {
             credits: 100,
             isAdmin: false,
           },
-          session: authData.session?.access_token,
+          access_token: authData.session?.access_token || null,
+          refresh_token: authData.session?.refresh_token || null,
+          session: authData.session?.access_token || null,
         })
       );
     }
@@ -95,7 +100,9 @@ export async function POST(request: NextRequest) {
           credits: user.credits,
           isAdmin: user.is_admin,
         },
-        session: authData.session?.access_token,
+        access_token: authData.session?.access_token || null,
+        refresh_token: authData.session?.refresh_token || null,
+        session: authData.session?.access_token || null,
       })
     );
   } catch (error) {

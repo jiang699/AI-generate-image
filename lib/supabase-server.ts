@@ -1,8 +1,10 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { type NextRequest } from 'next/server';
 
-export const createClient = async (request?: NextRequest) => {
+// 用于服务端组件的 Supabase 客户端（需要 cookies）
+export const createServerComponentClient = async (request?: NextRequest) => {
   const cookieStore = await cookies();
   
   return createServerClient(
@@ -32,29 +34,16 @@ export const createClient = async (request?: NextRequest) => {
   );
 };
 
-// 用于 API Route 的服务角色客户端（不需要 cookies）
-export const createServiceClient = () => {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
+// 用于 API Route 的服务角色客户端（使用 service role key 绕过 RLS）
+export const createServiceClient = (): SupabaseClient => {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+    throw new Error('Missing Supabase environment variables');
+  }
+  
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY,
     {
-      cookies: {
-        getAll() {
-          return [];
-        },
-        get(_name: string) {
-          return null;
-        },
-        setAll(_cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
-          // 不保存 cookies
-        },
-        set(_name: string, _value: string, _options: CookieOptions) {
-          // 不保存 cookies
-        },
-        remove(_name: string, _options: CookieOptions) {
-          // 不删除 cookies
-        },
-      },
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -62,3 +51,6 @@ export const createServiceClient = () => {
     }
   );
 };
+
+// 保持向后兼容的别名
+export const createClient = createServerComponentClient;

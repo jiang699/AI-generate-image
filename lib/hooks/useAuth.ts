@@ -84,33 +84,43 @@ export function useAuth() {
 
   const signin = useCallback(async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      
-      if (error) {
-        throw new Error(error.message);
+      // 使用服务端 API 进行登录
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error?.message || 'Login failed' };
       }
 
-      if (data.user) {
-        // 获取用户信息
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id, email, display_name, credits, is_admin')
-          .eq('id', data.user.id)
-          .single();
+      if (data.success && data.data) {
+        const accessToken = data.data.access_token || data.data.session || null;
+        const refreshToken = data.data.refresh_token || null;
 
-        if (userData) {
-          setAuthState({
-            user: {
-              id: userData.id,
-              email: userData.email,
-              displayName: userData.display_name,
-              credits: userData.credits,
-              isAdmin: userData.is_admin,
-            },
-            loading: false,
-            token: data.session?.access_token || null,
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
           });
         }
+
+        setAuthState({
+          user: {
+            id: data.data.user.id,
+            email: data.data.user.email,
+            displayName: data.data.user.displayName,
+            credits: data.data.user.credits,
+            isAdmin: data.data.user.isAdmin,
+          },
+          loading: false,
+          token: accessToken,
+        });
       }
 
       return { success: true };
@@ -121,40 +131,41 @@ export function useAuth() {
 
   const signup = useCallback(async (email: string, password: string, displayName: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      
-      if (error) {
-        throw new Error(error.message);
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, displayName }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error?.message || 'Registration failed' };
       }
 
-      if (data.user) {
-        // 创建用户记录（赠送100积分）
-        await supabase.from('users').insert({
-          id: data.user.id,
-          email: data.user.email!,
-          display_name: displayName,
-          credits: 100,
-          is_admin: false,
-        });
+      if (data.success && data.data) {
+        const accessToken = data.data.access_token || data.data.session || null;
+        const refreshToken = data.data.refresh_token || null;
 
-        // 创建交易记录
-        await supabase.from('transactions').insert({
-          user_id: data.user.id,
-          type: 'purchase',
-          amount: 100,
-          description: 'Welcome bonus',
-        });
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+        }
 
         setAuthState({
           user: {
-            id: data.user.id,
-            email: data.user.email!,
-            displayName,
-            credits: 100,
+            id: data.data.user.id,
+            email: data.data.user.email,
+            displayName: data.data.user.displayName,
+            credits: data.data.user.credits,
             isAdmin: false,
           },
           loading: false,
-          token: data.session?.access_token || null,
+          token: accessToken,
         });
       }
 

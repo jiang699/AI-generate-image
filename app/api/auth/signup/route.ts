@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
 import { createSuccessResponse, createErrorResponse } from '@/lib/api';
 import { createServiceClient } from '@/lib/supabase-server';
 
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const result = signupSchema.safeParse(body);
-    
+
     if (!result.success) {
       return NextResponse.json(
         createErrorResponse('INVALID_PARAMS', 'Invalid request parameters'),
@@ -22,13 +23,13 @@ export async function POST(request: NextRequest) {
     }
 
     const { email, password, displayName } = result.data;
+    const supabaseAdmin = createServiceClient();
 
-    const supabase = createServiceClient();
-
-    // 创建 Supabase Auth 用户
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
+      email_confirm: true,
+      user_metadata: { display_name: displayName },
     });
 
     if (authError) {
@@ -46,38 +47,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 在 users 表中创建用户记录
-    const { error: userError } = await supabase
+    const { error: userError } = await supabaseAdmin
       .from('users')
       .insert({
         id: authData.user.id,
         email: authData.user.email!,
         display_name: displayName,
-        credits: 100, // 新用户赠送100积分
+        credits: 100,
         is_admin: false,
       });
 
     if (userError) {
       console.error('Signup user error:', userError);
-      // 清理已创建的 Auth 用户
       try {
-        await supabase.auth.admin.deleteUser(authData.user.id);
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
       } catch (e) {
         console.error('Failed to cleanup auth user:', e);
       }
-      
+
       return NextResponse.json(
         createErrorResponse('DB_ERROR', 'Failed to create user record'),
         { status: 500 }
       );
     }
 
-    // 创建赠送积分的交易记录
-    await supabase.from('transactions').insert({
+    await supabaseAdmin.from('transactions').insert({
       user_id: authData.user.id,
       type: 'purchase',
       amount: 100,
       description: 'Welcome bonus',
+    });
+
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    );
+
+    const { data: signinData, error: signinError } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password,
     });
 
     return NextResponse.json(
@@ -88,7 +96,12 @@ export async function POST(request: NextRequest) {
           displayName,
           credits: 100,
         },
-        message: 'User created successfully. Welcome bonus 100 credits added!',
+        access_token: signinData?.session?.access_token || null,
+        refresh_token: signinData?.session?.refresh_token || null,
+        session: signinData?.session?.access_token || null,
+        message: signinError
+          ? 'User created successfully. Welcome bonus 100 credits added! Please sign in.'
+          : 'User created successfully. Welcome bonus 100 credits added!',
       })
     );
   } catch (error) {

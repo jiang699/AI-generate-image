@@ -72,11 +72,17 @@ ALTER TABLE generation_history ENABLE ROW LEVEL SECURITY;
 -- 创建策略
 
 -- users 表策略
-CREATE POLICY "Users can view their own profile" ON users
-  FOR SELECT USING (auth.uid() = id);
+-- 允许任何人查看所有用户（用于公开信息，如创作者展示）
+CREATE POLICY "Anyone can view users" ON users
+  FOR SELECT USING (true);
 
+-- 允许用户更新自己的资料
 CREATE POLICY "Users can update their own profile" ON users
   FOR UPDATE USING (auth.uid() = id);
+
+-- ✅ 关键：允许插入用户记录（用于注册）
+CREATE POLICY "Anyone can insert users" ON users
+  FOR INSERT WITH CHECK (true);
 
 -- 注意：管理员策略已移至 functions.sql 中使用 SECURITY DEFINER 函数实现
 -- 避免无限递归问题

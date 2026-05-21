@@ -1,12 +1,26 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY!;
+// 客户端配置 - 使用公共环境变量
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 检查环境变量是否配置
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ Supabase environment variables are not properly configured');
+  console.error('Make sure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set');
+}
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// 客户端 Supabase 实例
+export const supabase: SupabaseClient = createClient(
+  supabaseUrl || '', 
+  supabaseAnonKey || '',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  }
+);
 
 export interface User {
   id: string;

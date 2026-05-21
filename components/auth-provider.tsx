@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useCallback, useState } from 'react';
+import { createContext, useContext, useCallback, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth, type User } from '@/lib/hooks/useAuth';
 
 interface AuthContextType {
@@ -19,14 +20,25 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const { user, token, loading, signin, signup, signout } = useAuth();
   const [showSigninModal, setShowSigninModal] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
+  const [redirectOnAuth, setRedirectOnAuth] = useState(false);
+
+  // 当用户登录后，重定向到工作台
+  useEffect(() => {
+    if (user && redirectOnAuth) {
+      router.push('/workbench');
+      setRedirectOnAuth(false);
+    }
+  }, [user, router, redirectOnAuth]);
 
   const handleSignin = useCallback(async (email: string, password: string) => {
     const result = await signin(email, password);
     if (result.success) {
       setShowSigninModal(false);
+      setRedirectOnAuth(true);
     }
     return result;
   }, [signin]);
@@ -35,14 +47,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const result = await signup(email, password, displayName);
     if (result.success) {
       setShowSignupModal(false);
+      setRedirectOnAuth(true);
     }
     return result;
   }, [signup]);
 
   const handleSignout = useCallback(async () => {
     const result = await signout();
+    if (result.success) {
+      router.push('/');
+    }
     return result;
-  }, [signout]);
+  }, [signout, router]);
 
   return (
     <AuthContext.Provider
